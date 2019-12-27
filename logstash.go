@@ -210,7 +210,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		data["stream"] = m.Source
 		data["tags"] = tags
 		data["rancher"] = rancherInfo
-		data["offset"] = *a.offset.increment()
+		data["offset"] = a.offset.increment()
 
 		// Return the JSON encoding
 		if js, err = json.Marshal(data); err != nil {
