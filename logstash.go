@@ -8,10 +8,21 @@ import (
 	"os"
 	"strings"
 	"time"
+	"sync/atomic"
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/gliderlabs/logspout/router"
 )
+
+type counter32 int32
+
+func (c *counter32) increment() int32 {
+    return atomic.AddInt32((*int32)(c), 1)
+}
+
+func (c *counter32) get() int32 {
+    return atomic.LoadInt32((*int32)(c))
+}
 
 func init() {
 	router.AdapterFactories.Register(NewLogstashAdapter, "logstash")
@@ -21,6 +32,7 @@ func init() {
 type LogstashAdapter struct {
 	conn           net.Conn
 	route          *router.Route
+	offset         *counter32
 	containerTags  map[string][]string
 	logstashFields map[string]map[string]string
 }
@@ -37,9 +49,12 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 		return nil, err
 	}
 
+	var offset counter32
+
 	return &LogstashAdapter{
 		route:          route,
 		conn:           conn,
+		offset:         &offset,
 		containerTags:  make(map[string][]string),
 		logstashFields: make(map[string]map[string]string),
 	}, nil
@@ -195,6 +210,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		data["stream"] = m.Source
 		data["tags"] = tags
 		data["rancher"] = rancherInfo
+		data["offset"] = *a.offset.increment()
 
 		// Return the JSON encoding
 		if js, err = json.Marshal(data); err != nil {
